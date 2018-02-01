@@ -13,14 +13,6 @@ namespace CriPakTools
     }
     class Program
     {
-        [DllImport("user32.dll", EntryPoint = "MessageBox")]
-        public static extern int MsgBox(IntPtr hwnd, string text, string caption, uint type);
-        public static void ShowMsgBox(string msg)
-        {
-            MsgBox(IntPtr.Zero, msg, "CriPakTools", 1);
-        }
-        
-
         static void Main(string[] args)
         {
             if (args.Length == 0)
@@ -28,16 +20,16 @@ namespace CriPakTools
 
                 Console.WriteLine("error: no args\n");
                 Console.WriteLine("====================");
-                Console.WriteLine("This tool has been redesigned, please use CriPakGUI.exe ");
-                Console.WriteLine("====================");
                 Console.WriteLine("This tool is based on the codes by Falo , Nanashi3 ,esperknight and uyjulian");
                 Console.WriteLine("I forked and added batch reimport and compress code .");
                 Console.WriteLine("Thanks for KenTse 's CRILAYLA compression method");
                 Console.WriteLine("                                     by: wmltogether@gmail.com");
+                Console.WriteLine("With small changes by Uwabami\n");
                 Console.WriteLine("CriPakTool Usage:");
                 Console.WriteLine(" -e - set encodings (utf8, utf16, cp932)");
                 Console.WriteLine(" -l - Displays all contained chunks.");
                 Console.WriteLine(" -x - Extracts all files.");
+                Console.WriteLine(" -s OUT_FILE - Extracts single file");
                 Console.WriteLine(" -r REPLACE_ME REPLACE_WITH - Replaces REPLACE_ME with REPLACE_WITH.");
                 Console.WriteLine(" -o OUT_FILE - Set output file.");
                 Console.WriteLine(" -d OUT_DIR - Set output directory.");
@@ -46,12 +38,12 @@ namespace CriPakTools
                 Console.WriteLine(" -y - use legacy (c)CRI decompression");
                 Console.WriteLine(" -b BATCH_REPLACE_LIST_TXT - Batch Replace file recorded in filelist.txt .");
                 Console.WriteLine(" -h HELP");
-                Program.ShowMsgBox("Error:  \n  Please run this program from console!");
                 
                 return;
             }
 
             bool doExtract = false;
+            bool doExtractS = false;
             bool doReplace = false;
             bool doDisplay = false;
             bool bUseCompress = false;
@@ -62,6 +54,7 @@ namespace CriPakTools
             string outFile = "";
             string replaceMe = "";
             string replaceWith = "";
+            string singleExtract = "";
             string batch_text_name = "";
 
             for (int i = 0; i < args.Length; i++)
@@ -90,6 +83,7 @@ namespace CriPakTools
                                 break;
                             }
                         case 'x': doExtract = true; break;
+                        case 's': doExtractS = true; singleExtract = args[i + 1]; break;
                         case 'c': bUseCompress = true; break;
                         case 'r': doReplace = true; replaceMe = args[i + 1]; replaceWith = args[i + 2]; break;
                         case 'l': doDisplay = true; break;
@@ -102,6 +96,7 @@ namespace CriPakTools
                             Console.WriteLine("CriPakTool Usage:");
                             Console.WriteLine(" -l - Displays all contained chunks.");
                             Console.WriteLine(" -x - Extracts all files.");
+                            Console.WriteLine(" -s OUT_FILE - Extracts single file");
                             Console.WriteLine(" -c - use CRILAYLA compression");
                             Console.WriteLine(" -r REPLACE_ME REPLACE_WITH - Replaces REPLACE_ME with REPLACE_WITH.");
                             Console.WriteLine(" -o OUT_FILE - Set output file.");
@@ -126,6 +121,7 @@ namespace CriPakTools
                             Console.WriteLine("CriPakTool Usage:");
                             Console.WriteLine(" -l - Displays all contained chunks.");
                             Console.WriteLine(" -x - Extracts all files.");
+                            Console.WriteLine(" -s OUT_FILE - Extracts single file");
                             Console.WriteLine(" -c - use CRILAYLA compression");
                             Console.WriteLine(" -r REPLACE_ME REPLACE_WITH - Replaces REPLACE_ME with REPLACE_WITH.");
                             Console.WriteLine(" -o OUT_FILE - Set output file.");
@@ -149,7 +145,7 @@ namespace CriPakTools
                 return;
             }
 
-            if (!(doExtract || doReplace || doDisplay || doBatchReplace))
+            if (!(doExtract || doExtractS || doReplace || doDisplay || doBatchReplace))
             { //Lazy sanity checking for now
                 Console.WriteLine("no? \n");
                 return;
@@ -175,7 +171,7 @@ namespace CriPakTools
                                                                 entries[i].FileType);
                 }
             }
-            else if (doExtract)
+            else if (doExtract || doExtractS)
             {
                 if (!Directory.Exists(outDir))
                 {
@@ -193,10 +189,12 @@ namespace CriPakTools
 
                 for (int i = 0; i < entries.Count; i++)
                 {
-                    if (!String.IsNullOrEmpty((string)entries[i].DirName))
-                    {
+                    string aFileName = ((entries[i].DirName != null) ? (entries[i].DirName + "/") : "") + entries[i].FileName;
+                    if (!doExtractS || !(aFileName != singleExtract)) {
+                       if (!String.IsNullOrEmpty((string)entries[i].DirName))
+                       {
                         Directory.CreateDirectory(outDir + "/" + entries[i].DirName.ToString());
-                    }
+                       }
 
                     oldFile.BaseStream.Seek((long)entries[i].FileOffset, SeekOrigin.Begin);
 
@@ -205,13 +203,13 @@ namespace CriPakTools
 
                     byte[] chunk = oldFile.ReadBytes(Int32.Parse(entries[i].FileSize.ToString()));
                     Console.WriteLine("FileName :{0}\n    FileOffset:{1:x8}    ExtractSize:{2:x8}   ChunkSize:{3:x8}", 
-                                                                            entries[i].FileName.ToString(),
+                                                                            aFileName,
                                                                             (long)entries[i].FileOffset, 
                                                                             entries[i].ExtractSize, 
                                                                             entries[i].FileSize);
                     if (isComp == "CRILAYLA")
                     {
-                        Console.WriteLine("Got CRILAYLA !");
+                        //Console.WriteLine("Got CRILAYLA !");
                         int size = Int32.Parse((entries[i].ExtractSize ?? entries[i].FileSize).ToString());
 
                         if (size != 0)
@@ -226,14 +224,14 @@ namespace CriPakTools
                     }
 
                     string dstpath = outDir + "/" + ((entries[i].DirName != null) ? entries[i].DirName + "/" : "") + entries[i].FileName.ToString();
-                    dstpath = Tools.GetSafePath(dstpath);
+                    //dstpath = Tools.GetSafePath(dstpath);
                     string dstdir = Path.GetDirectoryName(dstpath);
                     if (!Directory.Exists(dstdir))
                     {
                         Directory.CreateDirectory(dstdir);
                     }
                     File.WriteAllBytes(dstpath, chunk);
-
+                  }
                 }
             }
             else if (doBatchReplace)
